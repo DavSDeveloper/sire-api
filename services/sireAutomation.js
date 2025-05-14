@@ -50,7 +50,7 @@ exports.enviarFormularioSIRE = async (datos) => {
     });
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Llenar formulario de "Consultar Extranjeros"
+    // Llenar formulario
     await page.select("select[name='formConsultarCargas:j_id51']", datos.tipoCarga);
     await page.select("#formConsultarCargas\\:tiposDocumento", datos.tipoDocConsulta);
     await page.type("#formConsultarCargas\\:numeroDocumento", datos.numeroDocConsulta);
@@ -62,13 +62,68 @@ exports.enviarFormularioSIRE = async (datos) => {
     await page.click("#formConsultarCargas\\:j_id66");
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Captura de pantalla como evidencia
-    await page.screenshot({ path: "resultado_busqueda.png" });
+    // Cerrar ventana emergente si aparece
+    const botonEmergente = "#messagesForm\\:messagesButton";
+    try {
+      await page.waitForSelector(botonEmergente, { timeout: 3000 });
+      await page.click(botonEmergente);
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (e) {}
+
+    // Esperar que cargue la tabla
+    await page.waitForSelector("#formConsultarCargas\\:registros\\:tb");
+
+    // Obtener número de filas
+    const filas = await page.$$(
+      "#formConsultarCargas\\:registros\\:tb > tr"
+    );
+
+    const resultados = [];
+
+    for (let i = 0; i < filas.length; i++) {
+      // Extraer datos visibles de la fila
+      const datosFila = await page.evaluate((index) => {
+        const fila = document.querySelectorAll(`#formConsultarCargas\\:registros\\:tb > tr`)[index];
+        const celdas = fila.querySelectorAll("td span.texto");
+        const nombres = ["Documento", "Fecha Ingreso", "Fecha Salida", "Nombres", "Apellido 1", "Apellido 2"];
+        const filaInfo = {};
+        celdas.forEach((celda, idx) => {
+          filaInfo[nombres[idx] || `Campo${idx}`] = celda.textContent.trim();
+        });
+        return filaInfo;
+      }, i);
+
+      // Clic en botón de detalle
+      const btnDetalleSelector = `#formConsultarCargas\\:registros\\:${i}\\:j_id92`;
+      await page.click(btnDetalleSelector);
+      await page.waitForSelector("#j_id125\\:j_id126", { visible: true });
+
+      // Extraer información del modal
+      const detalle = await page.evaluate(() => {
+        const etiquetas = Array.from(document.querySelectorAll("#j_id125\\:j_id126 td.col40"));
+        const valores = Array.from(document.querySelectorAll("#j_id125\\:j_id126 td.col60"));
+        const resultado = {};
+        for (let j = 0; j < etiquetas.length; j++) {
+          const clave = etiquetas[j].innerText.trim().replace(":", "");
+          const valor = valores[j].innerText.trim();
+          resultado[clave] = valor;
+        }
+        return resultado;
+      });
+
+      resultados.push({
+        fila: datosFila,
+        detalle: detalle,
+      });
+
+      // Cerrar modal
+      await page.click("#j_id125\\:j_id145");
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
 
     await browser.close();
-    return "Formulario enviado correctamente.";
+    return resultados;
   } catch (err) {
-    await page.screenshot({ path: "error.png" });
     await browser.close();
     throw new Error(`Error en el proceso: ${err.message}`);
   }

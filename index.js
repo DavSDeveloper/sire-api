@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-app.post('/api/enviar-sire', sireController.enviarDatosSIRE);
+app.post('/api/consultar-extranjero', sireController.enviarDatosSIRE);
 
 app.listen(PORT, () => {
   console.log(`API corriendo en http://localhost:${PORT}`);
