@@ -1,6 +1,6 @@
 const puppeteer = require("puppeteer");
 
-exports.enviarFormularioSIRE = async (datos) => {
+exports.consultarDatosFormularioSIRE = async (datos) => {
   const browser = await puppeteer.launch({
     headless: false,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -124,6 +124,94 @@ exports.enviarFormularioSIRE = async (datos) => {
     await browser.close();
     return resultados;
   } catch (err) {
+    await browser.close();
+    throw new Error(`Error en el proceso: ${err.message}`);
+  }
+};
+
+exports.enviarFormularioSIRE = async (datos) => {
+  const browser = await puppeteer.launch({
+    headless: false,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
+
+  try {
+    await page.goto("https://apps.migracioncolombia.gov.co/sire/public/login.jsf", {
+      waitUntil: "networkidle2",
+    });
+
+    // Login
+    await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento);
+    await page.evaluate(() => {
+      const input = document.querySelector("#formLogin\\:numeroDocumento");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    await page.type("#formLogin\\:password", datos.clave);
+
+    await page.waitForSelector("#formLogin\\:listaEmpresa");
+    const opciones = await page.$$eval("#formLogin\\:listaEmpresa option", opts =>
+      opts.map(opt => ({ value: opt.value, text: opt.textContent }))
+    );
+    const opcionValida = opciones.find(opt => opt.value !== "-1");
+    if (!opcionValida) throw new Error("No hay empresa seleccionable.");
+
+    await page.select("#formLogin\\:listaEmpresa", opcionValida.value);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    await Promise.all([
+      page.click("#formLogin\\:button1"),
+      page.waitForNavigation({ waitUntil: "networkidle2" }),
+    ]);
+
+    // Navegar a "Cargar Información"
+    await page.waitForSelector("#itemCargarInformacion");
+    await page.click("#itemCargarInformacion");
+
+    // Seleccionar pestaña "Alojamiento y Hospedaje"
+    await page.waitForSelector("#HOTEL_cell table");
+    await page.evaluate(() => {
+      document.querySelector("#HOTEL_cell table").click();
+    });
+
+    // Esperar formulario
+    await page.waitForSelector("#cargueFormHospedaje\\:tipoMovimiento");
+
+    // Llenar formulario
+    await page.select("#cargueFormHospedaje\\:tipoMovimiento", "3"); // Entrada
+
+    await page.type("#cargueFormHospedaje\\:numeroDocumento", datos.docExtranjero);
+
+    // Quitar readonly a fecha nacimiento
+    await page.evaluate(() => {
+      const input = document.querySelector("#cargueFormHospedaje\\:fechaNacimientoInputDate");
+      if (input) input.removeAttribute("readonly");
+    });
+    await page.type("#cargueFormHospedaje\\:fechaNacimientoInputDate", datos.fechaNacimiento); 
+
+    await page.type("#cargueFormHospedaje\\:primerApellido", datos.primerApellido);
+    await page.type("#cargueFormHospedaje\\:segundoApellido", datos.segundoApellido || "");
+    await page.type("#cargueFormHospedaje\\:nombres", datos.nombres);
+    await page.select("#cargueFormHospedaje\\:nacionalidad", datos.nacionalidad); 
+
+    // Guardar
+    await page.click("#cargueFormHospedaje\\:guardar");
+
+    // Esperar y capturar pantalla como respaldo
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: "formulario-enviado.png" });
+
+    await browser.close();
+    return "Formulario enviado correctamente.";
+  } catch (err) {
+    await page.screenshot({ path: "error.png" });
     await browser.close();
     throw new Error(`Error en el proceso: ${err.message}`);
   }
