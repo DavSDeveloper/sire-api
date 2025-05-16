@@ -1,3 +1,4 @@
+const fs = require("fs");
 const puppeteer = require("puppeteer");
 
 exports.consultarDatosFormularioSIRE = async (datos) => {
@@ -10,32 +11,36 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
   await page.setViewport({ width: 1280, height: 800 });
 
   try {
-    await page.goto("https://apps.migracioncolombia.gov.co/sire/public/login.jsf", {
-      waitUntil: "networkidle2",
-    });
+    await page.goto(
+      "https://apps.migracioncolombia.gov.co/sire/public/login.jsf",
+      {
+        waitUntil: "networkidle2",
+      }
+    );
 
     // Login
     await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento);
     await page.evaluate(() => {
       const input = document.querySelector("#formLogin\\:numeroDocumento");
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     await page.type("#formLogin\\:password", datos.clave);
 
     await page.waitForSelector("#formLogin\\:listaEmpresa");
-    const opciones = await page.$$eval("#formLogin\\:listaEmpresa option", opts =>
-      opts.map(opt => ({ value: opt.value, text: opt.textContent }))
+    const opciones = await page.$$eval(
+      "#formLogin\\:listaEmpresa option",
+      (opts) => opts.map((opt) => ({ value: opt.value, text: opt.textContent }))
     );
-    const opcionValida = opciones.find(opt => opt.value !== "-1");
+    const opcionValida = opciones.find((opt) => opt.value !== "-1");
     if (!opcionValida) throw new Error("No hay empresa seleccionable.");
 
     await page.select("#formLogin\\:listaEmpresa", opcionValida.value);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     await Promise.all([
       page.click("#formLogin\\:button1"),
@@ -43,49 +48,73 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
     ]);
 
     // Navegar a "Consultar Extranjeros"
-    await page.waitForSelector("#tablehideitemConsultarExtranjeros", { visible: true });
+    await page.waitForSelector("#tablehideitemConsultarExtranjeros", {
+      visible: true,
+    });
     await page.evaluate(() => {
       const celda = document.querySelector("#row_itemConsultarExtranjeros");
       if (celda) celda.click();
     });
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Llenar formulario
-    await page.select("select[name='formConsultarCargas:j_id51']", datos.tipoCarga);
-    await page.select("#formConsultarCargas\\:tiposDocumento", datos.tipoDocConsulta);
-    await page.type("#formConsultarCargas\\:numeroDocumento", datos.numeroDocConsulta);
+    await page.select(
+      "select[name='formConsultarCargas:j_id51']",
+      datos.tipoCarga
+    );
+    await page.select(
+      "#formConsultarCargas\\:tiposDocumento",
+      datos.tipoDocConsulta
+    );
+    await page.type(
+      "#formConsultarCargas\\:numeroDocumento",
+      datos.numeroDocConsulta
+    );
     await page.type("#formConsultarCargas\\:nombres", datos.nombres || "");
-    await page.type("#formConsultarCargas\\:PrimerApellido", datos.primerApellido || "");
-    await page.type("#formConsultarCargas\\:SegundoApellido", datos.segundoApellido || "");
+    await page.type(
+      "#formConsultarCargas\\:PrimerApellido",
+      datos.primerApellido || ""
+    );
+    await page.type(
+      "#formConsultarCargas\\:SegundoApellido",
+      datos.segundoApellido || ""
+    );
 
     // Clic en Buscar
     await page.click("#formConsultarCargas\\:j_id66");
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Cerrar ventana emergente si aparece
     const botonEmergente = "#messagesForm\\:messagesButton";
     try {
       await page.waitForSelector(botonEmergente, { timeout: 3000 });
       await page.click(botonEmergente);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (e) {}
 
     // Esperar que cargue la tabla
     await page.waitForSelector("#formConsultarCargas\\:registros\\:tb");
 
     // Obtener número de filas
-    const filas = await page.$$(
-      "#formConsultarCargas\\:registros\\:tb > tr"
-    );
+    const filas = await page.$$("#formConsultarCargas\\:registros\\:tb > tr");
 
     const resultados = [];
 
     for (let i = 0; i < filas.length; i++) {
       // Extraer datos visibles de la fila
       const datosFila = await page.evaluate((index) => {
-        const fila = document.querySelectorAll(`#formConsultarCargas\\:registros\\:tb > tr`)[index];
+        const fila = document.querySelectorAll(
+          `#formConsultarCargas\\:registros\\:tb > tr`
+        )[index];
         const celdas = fila.querySelectorAll("td span.texto");
-        const nombres = ["Documento", "Fecha Ingreso", "Fecha Salida", "Nombres", "Apellido 1", "Apellido 2"];
+        const nombres = [
+          "Documento",
+          "Fecha Ingreso",
+          "Fecha Salida",
+          "Nombres",
+          "Apellido 1",
+          "Apellido 2",
+        ];
         const filaInfo = {};
         celdas.forEach((celda, idx) => {
           filaInfo[nombres[idx] || `Campo${idx}`] = celda.textContent.trim();
@@ -100,8 +129,12 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
 
       // Extraer información del modal
       const detalle = await page.evaluate(() => {
-        const etiquetas = Array.from(document.querySelectorAll("#j_id125\\:j_id126 td.col40"));
-        const valores = Array.from(document.querySelectorAll("#j_id125\\:j_id126 td.col60"));
+        const etiquetas = Array.from(
+          document.querySelectorAll("#j_id125\\:j_id126 td.col40")
+        );
+        const valores = Array.from(
+          document.querySelectorAll("#j_id125\\:j_id126 td.col60")
+        );
         const resultado = {};
         for (let j = 0; j < etiquetas.length; j++) {
           const clave = etiquetas[j].innerText.trim().replace(":", "");
@@ -118,14 +151,16 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
 
       // Cerrar modal
       await page.click("#j_id125\\:j_id145");
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     await browser.close();
     return resultados;
   } catch (err) {
     await browser.close();
-    throw new Error(`Error en el proceso: ${err.message}`);
+    throw new Error(
+      `No se encontraron registros. Error en el proceso: ${err.message}`
+    );
   }
 };
 
@@ -139,32 +174,33 @@ exports.enviarFormularioSIRE = async (datos) => {
   await page.setViewport({ width: 1280, height: 800 });
 
   try {
-    await page.goto("https://apps.migracioncolombia.gov.co/sire/public/login.jsf", {
-      waitUntil: "networkidle2",
-    });
+    await page.goto(
+      "https://apps.migracioncolombia.gov.co/sire/public/login.jsf",
+      {
+        waitUntil: "networkidle2",
+      }
+    );
 
     // Login
     await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento);
     await page.evaluate(() => {
       const input = document.querySelector("#formLogin\\:numeroDocumento");
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await page.type("#formLogin\\:password", datos.clave);
 
     await page.waitForSelector("#formLogin\\:listaEmpresa");
-    const opciones = await page.$$eval("#formLogin\\:listaEmpresa option", opts =>
-      opts.map(opt => ({ value: opt.value, text: opt.textContent }))
+    const opciones = await page.$$eval(
+      "#formLogin\\:listaEmpresa option",
+      (opts) => opts.map((opt) => ({ value: opt.value, text: opt.textContent }))
     );
-    const opcionValida = opciones.find(opt => opt.value !== "-1");
+    const opcionValida = opciones.find((opt) => opt.value !== "-1");
     if (!opcionValida) throw new Error("No hay empresa seleccionable.");
-
     await page.select("#formLogin\\:listaEmpresa", opcionValida.value);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     await Promise.all([
       page.click("#formLogin\\:button1"),
@@ -185,33 +221,83 @@ exports.enviarFormularioSIRE = async (datos) => {
     await page.waitForSelector("#cargueFormHospedaje\\:tipoMovimiento");
 
     // Llenar formulario
-    await page.select("#cargueFormHospedaje\\:tipoMovimiento", "3"); // Entrada
-
-    await page.type("#cargueFormHospedaje\\:numeroDocumento", datos.docExtranjero);
-
-    // Quitar readonly a fecha nacimiento
+    await page.select(
+      "#cargueFormHospedaje\\:tipoMovimiento",
+      datos.tipoMovimiento
+    );
     await page.evaluate(() => {
-      const input = document.querySelector("#cargueFormHospedaje\\:fechaNacimientoInputDate");
+      const input = document.querySelector(
+        "#cargueFormHospedaje\\:fechaMovimientoInputDate"
+      );
       if (input) input.removeAttribute("readonly");
     });
-    await page.type("#cargueFormHospedaje\\:fechaNacimientoInputDate", datos.fechaNacimiento); 
+    await page.type(
+      "#cargueFormHospedaje\\:fechaMovimientoInputDate",
+      datos.fechaMovimiento
+    );
+    await page.select(
+      "#cargueFormHospedaje\\:tipoDocumento",
+      datos.tipoDocExtranjero
+    );
+    await page.type(
+      "#cargueFormHospedaje\\:numeroDocumento",
+      datos.docExtranjero
+    );
 
-    await page.type("#cargueFormHospedaje\\:primerApellido", datos.primerApellido);
-    await page.type("#cargueFormHospedaje\\:segundoApellido", datos.segundoApellido || "");
+    await page.evaluate(() => {
+      const input = document.querySelector(
+        "#cargueFormHospedaje\\:fechaNacimientoInputDate"
+      );
+      if (input) input.removeAttribute("readonly");
+    });
+    await page.type(
+      "#cargueFormHospedaje\\:fechaNacimientoInputDate",
+      datos.fechaNacimiento
+    );
+    await page.type(
+      "#cargueFormHospedaje\\:primerApellido",
+      datos.primerApellido
+    );
+    await page.type(
+      "#cargueFormHospedaje\\:segundoApellido",
+      datos.segundoApellido
+    );
     await page.type("#cargueFormHospedaje\\:nombres", datos.nombres);
-    await page.select("#cargueFormHospedaje\\:nacionalidad", datos.nacionalidad); 
+    await page.select(
+      "#cargueFormHospedaje\\:nacionalidad",
+      datos.nacionalidad
+    );
+    await page.select("#cargueFormHospedaje\\:procedencia", datos.procedencia);
+    await page.select("#cargueFormHospedaje\\:destino", datos.destino);
 
-    // Guardar
-    await page.click("#cargueFormHospedaje\\:guardar");
+    const htmlContent = await page.content();
+    fs.writeFileSync("antes_agregar_registro.html", htmlContent);
 
-    // Esperar y capturar pantalla como respaldo
-    await page.waitForTimeout(3000);
-    await page.screenshot({ path: "formulario-enviado.png" });
+    // Hacer clic en Agregar Registro con evaluación directa
+    await page.evaluate(() => {
+      const btn = document.querySelector("#cargueFormHospedaje\\:j_id877");
+      if (btn) btn.click();
+    });
+
+    // Esperar que aparezca la tabla de registros
+    await page.waitForSelector("#cargueFormHospedaje\\:listaRegHospedaje", {
+      visible: true,
+      timeout: 20000,
+    });
+
+    // Esperar y hacer clic en Guardar
+    await page.waitForSelector("#cargueFormHospedaje\\:j_id902", {
+      visible: true,
+      timeout: 20000,
+    });
+    await page.click("#cargueFormHospedaje\\:j_id902");
+
+    // Captura de respaldo
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     await browser.close();
     return "Formulario enviado correctamente.";
   } catch (err) {
-    await page.screenshot({ path: "error.png" });
     await browser.close();
     throw new Error(`Error en el proceso: ${err.message}`);
   }
