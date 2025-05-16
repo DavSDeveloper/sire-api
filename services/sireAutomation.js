@@ -1,36 +1,42 @@
-const fs = require("fs");
-const puppeteer = require("puppeteer");
+const fs = require("fs"); // Módulo para guardar HTML como respaldo (debug)
+const puppeteer = require("puppeteer"); // Librería para automatizar navegador
 
+// Función principal para consultar un registro de hospedaje en el sistema SIRE
 exports.consultarDatosFormularioSIRE = async (datos) => {
   const browser = await puppeteer.launch({
-    headless: false,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: false, // Mostrar navegador (útil para pruebas visuales)
+    args: ["--no-sandbox", "--disable-setuid-sandbox"], // Configuración para entornos sin permisos elevados
   });
 
-  const page = await browser.newPage();
-  await page.setViewport({ width: 1280, height: 800 });
+  // Crear una nueva pestaña en el navegador y establecer tamaño
+  // const page = await browser.newPage();
+  // await page.setViewport({ width: 1280, height: 800 });
 
   try {
+    // Ir a la página de inicio de sesión del sistema SIRE
     await page.goto(
       "https://apps.migracioncolombia.gov.co/sire/public/login.jsf",
       {
-        waitUntil: "networkidle2",
+        waitUntil: "networkidle2", // Esperar hasta que se detenga la carga de red
       }
     );
 
     // Login
-    await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento);
+    await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento); // Seleccionar tipo de documento
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento);
+    await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento); // Digitar número de documento
+
+    // Disparar evento change (necesario para que el sitio lo reconozca)
     await page.evaluate(() => {
       const input = document.querySelector("#formLogin\\:numeroDocumento");
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    await page.type("#formLogin\\:password", datos.clave);
+    await page.type("#formLogin\\:password", datos.clave); // Digitar clave
 
+    // Seleccionar empresa habilitada
     await page.waitForSelector("#formLogin\\:listaEmpresa");
     const opciones = await page.$$eval(
       "#formLogin\\:listaEmpresa option",
@@ -42,6 +48,7 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
     await page.select("#formLogin\\:listaEmpresa", opcionValida.value);
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    // Ingresar al sistema
     await Promise.all([
       page.click("#formLogin\\:button1"),
       page.waitForNavigation({ waitUntil: "networkidle2" }),
@@ -53,7 +60,7 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
     });
     await page.evaluate(() => {
       const celda = document.querySelector("#row_itemConsultarExtranjeros");
-      if (celda) celda.click();
+      if (celda) celda.click(); // Hacer clic en la celda
     });
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -80,7 +87,7 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
       datos.segundoApellido || ""
     );
 
-    // Clic en Buscar
+    // Buscar registros
     await page.click("#formConsultarCargas\\:j_id66");
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -164,16 +171,19 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
   }
 };
 
+// Función principal para enviar un registro de hospedaje al sistema SIRE
 exports.enviarFormularioSIRE = async (datos) => {
   const browser = await puppeteer.launch({
-    headless: false,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: false, // Mostrar navegador (útil para pruebas visuales)
+    args: ["--no-sandbox", "--disable-setuid-sandbox"], // Configuración para entornos sin permisos elevados
   });
 
-  const page = await browser.newPage();
-  await page.setViewport({ width: 1280, height: 800 });
+  // Crear una nueva pestaña en el navegador y establecer tamaño
+  // const page = await browser.newPage();
+  // await page.setViewport({ width: 1280, height: 800 });
 
   try {
+    // Ir a la página de login de SIRE
     await page.goto(
       "https://apps.migracioncolombia.gov.co/sire/public/login.jsf",
       {
@@ -182,16 +192,19 @@ exports.enviarFormularioSIRE = async (datos) => {
     );
 
     // Login
-    await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento);
+    await page.select("#formLogin\\:tipoDocumento", datos.tipoDocumento); // Seleccionar tipo de documento
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Espera
+    await page.type("#formLogin\\:numeroDocumento", datos.numeroDocumento); // Digitar número de documento
+    
+    // Forzar evento de cambio para activar lógica del sitio
     await page.evaluate(() => {
       const input = document.querySelector("#formLogin\\:numeroDocumento");
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    await page.type("#formLogin\\:password", datos.clave);
+    await page.type("#formLogin\\:password", datos.clave); // Digitar clave
 
+    // Seleccionar empresa habilitada
     await page.waitForSelector("#formLogin\\:listaEmpresa");
     const opciones = await page.$$eval(
       "#formLogin\\:listaEmpresa option",
@@ -202,6 +215,7 @@ exports.enviarFormularioSIRE = async (datos) => {
     await page.select("#formLogin\\:listaEmpresa", opcionValida.value);
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    // Ingresar al sistema
     await Promise.all([
       page.click("#formLogin\\:button1"),
       page.waitForNavigation({ waitUntil: "networkidle2" }),
@@ -225,6 +239,8 @@ exports.enviarFormularioSIRE = async (datos) => {
       "#cargueFormHospedaje\\:tipoMovimiento",
       datos.tipoMovimiento
     );
+
+    // Remover atributo readonly y llenar fecha de movimiento
     await page.evaluate(() => {
       const input = document.querySelector(
         "#cargueFormHospedaje\\:fechaMovimientoInputDate"
@@ -244,6 +260,7 @@ exports.enviarFormularioSIRE = async (datos) => {
       datos.docExtranjero
     );
 
+    // Remover readonly y llenar fecha de nacimiento
     await page.evaluate(() => {
       const input = document.querySelector(
         "#cargueFormHospedaje\\:fechaNacimientoInputDate"
@@ -254,6 +271,8 @@ exports.enviarFormularioSIRE = async (datos) => {
       "#cargueFormHospedaje\\:fechaNacimientoInputDate",
       datos.fechaNacimiento
     );
+
+    // Nombres y apellidos
     await page.type(
       "#cargueFormHospedaje\\:primerApellido",
       datos.primerApellido
@@ -263,6 +282,8 @@ exports.enviarFormularioSIRE = async (datos) => {
       datos.segundoApellido
     );
     await page.type("#cargueFormHospedaje\\:nombres", datos.nombres);
+
+    // Selección de nacionalidad, procedencia y destino
     await page.select(
       "#cargueFormHospedaje\\:nacionalidad",
       datos.nacionalidad
@@ -270,29 +291,32 @@ exports.enviarFormularioSIRE = async (datos) => {
     await page.select("#cargueFormHospedaje\\:procedencia", datos.procedencia);
     await page.select("#cargueFormHospedaje\\:destino", datos.destino);
 
-    const htmlContent = await page.content();
-    fs.writeFileSync("antes_agregar_registro.html", htmlContent);
+    // --- OPCIONAL: Guardar HTML actual por si el botón no hace nada (debug) ---
+    // const htmlContent = await page.content();
+    // fs.writeFileSync("antes_agregar_registro.html", htmlContent);
 
-    // Hacer clic en Agregar Registro con evaluación directa
+    // --- CLIC EN "Agregar Registro" ---
+    // Este botón lanza un proceso AJAX que genera una tabla nueva en el DOM
     await page.evaluate(() => {
       const btn = document.querySelector("#cargueFormHospedaje\\:j_id877");
       if (btn) btn.click();
     });
 
-    // Esperar que aparezca la tabla de registros
+    // Esperar a que la tabla de registros aparezca (verifica si se generó correctamente)
     await page.waitForSelector("#cargueFormHospedaje\\:listaRegHospedaje", {
       visible: true,
       timeout: 20000,
     });
 
-    // Esperar y hacer clic en Guardar
+    // Esperar a que aparezca el botón "Guardar"
     await page.waitForSelector("#cargueFormHospedaje\\:j_id902", {
       visible: true,
       timeout: 20000,
     });
+
+    // Clic en Guardar
     await page.click("#cargueFormHospedaje\\:j_id902");
 
-    // Captura de respaldo
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     await browser.close();
