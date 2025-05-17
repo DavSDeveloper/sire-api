@@ -9,8 +9,8 @@ exports.consultarDatosFormularioSIRE = async (datos) => {
   });
 
   // Crear una nueva pestaña en el navegador y establecer tamaño
-  // const page = await browser.newPage();
-  // await page.setViewport({ width: 1280, height: 800 });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
 
   try {
     // Ir a la página de inicio de sesión del sistema SIRE
@@ -179,8 +179,8 @@ exports.enviarFormularioSIRE = async (datos) => {
   });
 
   // Crear una nueva pestaña en el navegador y establecer tamaño
-  // const page = await browser.newPage();
-  // await page.setViewport({ width: 1280, height: 800 });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
 
   try {
     // Ir a la página de login de SIRE
